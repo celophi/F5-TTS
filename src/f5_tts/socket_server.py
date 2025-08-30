@@ -12,6 +12,7 @@ from importlib.resources import files
 import numpy as np
 import torch
 import torchaudio
+import time
 from huggingface_hub import hf_hub_download
 from hydra.utils import get_class
 from omegaconf import OmegaConf
@@ -25,49 +26,9 @@ from f5_tts.infer.utils_infer import (
 )
 
 
-logging.basicConfig(level=logging.INFO)
+
+#logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-class AudioFileWriterThread(threading.Thread):
-    """Threaded file writer to avoid blocking the TTS streaming process."""
-
-    def __init__(self, output_file, sampling_rate):
-        super().__init__()
-        self.output_file = output_file
-        self.sampling_rate = sampling_rate
-        self.queue = queue.Queue()
-        self.stop_event = threading.Event()
-        self.audio_data = []
-
-    def run(self):
-        """Process queued audio data and write it to a file."""
-        logger.info("AudioFileWriterThread started.")
-        with wave.open(self.output_file, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(self.sampling_rate)
-
-            while not self.stop_event.is_set() or not self.queue.empty():
-                try:
-                    chunk = self.queue.get(timeout=0.1)
-                    if chunk is not None:
-                        chunk = np.int16(chunk * 32767)
-                        self.audio_data.append(chunk)
-                        wf.writeframes(chunk.tobytes())
-                except queue.Empty:
-                    continue
-
-    def add_chunk(self, chunk):
-        """Add a new chunk to the queue."""
-        self.queue.put(chunk)
-
-    def stop(self):
-        """Stop writing and ensure all queued data is written."""
-        self.stop_event.set()
-        self.join()
-        logger.info("Audio writing completed.")
-
 
 class TTSStreamingProcessor:
     def __init__(self, model, ckpt_file, vocab_file, ref_audio, ref_text, device=None, dtype=torch.float32):
@@ -152,30 +113,21 @@ class TTSStreamingProcessor:
             device=self.device,
             streaming=True,
             chunk_size=2048,
+            nfe_step=16 #I changed this from 32. It saves about a second but check https://github.com/SWivid/F5-TTS/issues/120
         )
 
-        # Reset the file writer thread
-        if self.file_writer_thread is not None:
-            self.file_writer_thread.stop()
-        self.file_writer_thread = AudioFileWriterThread("output.wav", self.sampling_rate)
-        self.file_writer_thread.start()
-
+        #logger.info("Audio generation completed.")
         for audio_chunk, _ in audio_stream:
             if len(audio_chunk) > 0:
-                logger.info(f"Generated audio chunk of size: {len(audio_chunk)}")
+                #logger.info(f"Generated audio chunk of size: {len(audio_chunk)}")
 
                 # Send audio chunk via socket
                 conn.sendall(struct.pack(f"{len(audio_chunk)}f", *audio_chunk))
 
-                # Write to file asynchronously
-                self.file_writer_thread.add_chunk(audio_chunk)
-
         logger.info("Finished sending audio stream.")
-        conn.sendall(b"END")  # Send end signal
-
-        # Ensure all audio data is written before exiting
-        self.file_writer_thread.stop()
-
+        # Right now, I don't think I need to know that the stream is finished.
+        # But in the future maybe I want a packet header or something.
+        #conn.sendall(b"END")  # Send end signal
 
 def handle_client(conn, processor):
     try:
@@ -215,7 +167,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", default=9998)
+    parser.add_argument("--port", default=9002)
 
     parser.add_argument(
         "--model",
