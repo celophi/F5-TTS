@@ -244,33 +244,25 @@ def convert_char_to_phonemes(text_list, polyphone=True):
          ["¤o", "¤g", "¤e", "¤n", "¤k", "¤i", "¤d", "¤e", "¤s", "¤u", "¤k", "¤a"]]
         
         >>> convert_char_to_phonemes(["Today I took the 新幹線 to Tokyo"])
-        [[], ["¤sh", "¤i", "¤N", "¤ka", "¤N", "¤se", "¤N"], []]
+        [['T', 'o', 'd', 'a', 'y', ' ', 'I', ' ', 't', 'o', 'o', 'k', ' ', 't', 'h', 'e', ' ', 
+        '¤sh', '¤i', '¤N', '¤k', '¤a', '¤N', '¤s', '¤e', '¤N', ' ', 't', 'o', ' ', 'T', 'o', 'k', 'y', 'o']]
     """
     final_text_list = []
 
     for text in text_list:
-        if not text.strip():
-            final_text_list.append([])
-            continue
-        
-        # Split the text into Japanese and English segments
+        result = []
         segments = split_japanese_segments(text)
-        
+
         for segment in segments:
             if segment["is_japanese"]:
-                # Process Japanese text through g2p
-                try:
-                    phoneme_str = pyopenjtalk.g2p(segment["text"], kana=False)
-                    phonemes = phoneme_str.strip().split()
-                    prefixed_phonemes = [f"¤{phoneme}" for phoneme in phonemes]
-                    final_text_list.append(prefixed_phonemes)
-                except Exception as e:
-                    print(f"Warning: g2p conversion failed for '{segment['text']}': {e}")
-                    final_text_list.append([])
+                phonemes = pyopenjtalk.g2p(segment["text"], kana=False).strip().split()
+                result.extend(f"¤{p}" for p in phonemes)
             else:
-                # Skip English text from g2p
-                final_text_list.append([segment['text']])
-    
+                # Keep English/raw chars as-is
+                result.extend(segment["text"])  
+
+        final_text_list.append(result)
+
     return final_text_list
 
 
@@ -402,3 +394,4 @@ def is_japanese_char(char):
 
 if __name__ == "__main__":
     print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
+    #print(convert_char_to_pinyin(["hello this is a test", "what will I get"]))
