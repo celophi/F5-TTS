@@ -9,6 +9,7 @@ import jieba
 import torch
 from pypinyin import Style, lazy_pinyin
 from torch.nn.utils.rnn import pad_sequence
+import pyopenjtalk
 
 
 # seed everything
@@ -142,7 +143,6 @@ def get_tokenizer(dataset_name, tokenizer: str = "pinyin"):
 
 # convert char to pinyin
 
-
 def convert_char_to_pinyin(text_list, polyphone=True):
     if jieba.dt.initialized is False:
         jieba.default_logger.setLevel(50)  # CRITICAL
@@ -218,3 +218,187 @@ def get_epss_timesteps(n, device, dtype):
     if not t:
         return torch.linspace(0, 1, n + 1, device=device, dtype=dtype)
     return dt * torch.tensor(t, device=device, dtype=dtype)
+
+
+# TODO: Need to probaby specify the prefix character in config or something, 
+# or do something more robust.
+def convert_char_to_phonemes(text_list, polyphone=True):
+    """
+    Convert a list of text strings into OpenJTalk phoneme sequences.
+    Each phoneme is prefixed with the '¤' symbol. 
+    
+    Mixed text is split into segments, with only Japanese parts processed through g2p.
+    English segments are skipped (return empty lists).
+
+    Args:
+        text_list (list[str]): Input list of sentences.
+        polyphone (bool): kept for API compatibility (not used in OpenJTalk).
+    
+    Returns:
+        list[list[str]]: List of phoneme sequences with each phoneme prefixed by '¤'.
+        English segments return empty lists.
+    
+    Examples:
+        >>> convert_char_to_phonemes(["こんにちは", "お元気ですか"])
+        [["¤k", "¤o", "¤N", "¤n", "¤i", "¤ch", "¤i", "¤w", "¤a"], 
+         ["¤o", "¤g", "¤e", "¤n", "¤k", "¤i", "¤d", "¤e", "¤s", "¤u", "¤k", "¤a"]]
+        
+        >>> convert_char_to_phonemes(["Today I took the 新幹線 to Tokyo"])
+        [[], ["¤sh", "¤i", "¤N", "¤ka", "¤N", "¤se", "¤N"], []]
+    """
+    final_text_list = []
+
+    for text in text_list:
+        if not text.strip():
+            final_text_list.append([])
+            continue
+        
+        # Split the text into Japanese and English segments
+        segments = split_japanese_segments(text)
+        
+        for segment in segments:
+            if segment["is_japanese"]:
+                # Process Japanese text through g2p
+                try:
+                    phoneme_str = pyopenjtalk.g2p(segment["text"], kana=False)
+                    phonemes = phoneme_str.strip().split()
+                    prefixed_phonemes = [f"¤{phoneme}" for phoneme in phonemes]
+                    final_text_list.append(prefixed_phonemes)
+                except Exception as e:
+                    print(f"Warning: g2p conversion failed for '{segment['text']}': {e}")
+                    final_text_list.append([])
+            else:
+                # Skip English text from g2p
+                final_text_list.append([segment['text']])
+    
+    return final_text_list
+
+
+def split_japanese_segments(text):
+    """
+    Split text into segments with language identification.
+    
+    Args:
+        text (str): Input text with potential mixed content
+        
+    Returns:
+        list[dict]: List of segment dictionaries with text and language info
+    
+    Example:
+        >>> split_japanese_segments("Today I took the 新幹線 to Tokyo")
+        [
+            {"text": "Today I took the ", "is_japanese": False, "language": "en"},
+            {"text": "新幹線", "is_japanese": True, "language": "ja"},
+            {"text": " to Tokyo", "is_japanese": False, "language": "en"}
+        ]
+    """
+    segments = []
+    current_segment = ""
+    current_is_japanese = None
+    
+    for char in text:
+        is_japanese = is_japanese_char(char)
+        
+        # If language boundary detected
+        if current_is_japanese is not None and is_japanese != current_is_japanese:
+            segments.append({
+                "text": current_segment,
+                "is_japanese": current_is_japanese,
+                "language": "ja" if current_is_japanese else "en"
+            })
+            current_segment = ""
+        
+        current_is_japanese = is_japanese
+        current_segment += char
+    
+    # Add the final segment
+    if current_segment:
+        segments.append({
+            "text": current_segment,
+            "is_japanese": current_is_japanese,
+            "language": "ja" if current_is_japanese else "en"
+        })
+    
+    return segments
+
+def is_japanese_char(char):
+    """
+    Check if a single character is a Japanese character by examining its Unicode code point.
+    
+    Args:
+        char (str): A single character to check
+        
+    Returns:
+        bool: True if the character is Japanese, False otherwise
+    """
+    if len(char) != 1:
+        return False
+    
+    # Get the Unicode code point of the character
+    code_point = ord(char)
+    
+    # Check against Japanese Unicode blocks:
+    
+    # 1. CJK Symbols and Punctuation (3000-303F)
+    # Includes: Japanese-specific punctuation, brackets, repetition marks
+    # Examples: 。、・「」『』【】〒〓〔〕〖〗〘〙〚〛〜〝〞〟〠〡〢〣〤〥〦〧〨〩〪〭〮〯〫〬
+    if 0x3000 <= code_point <= 0x303F:
+        return True
+    
+    # 2. Hiragana (3040-309F)
+    # Includes: All hiragana characters, small hiragana, combining marks
+    # Examples: あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん
+    #           ぁぃぅぇぉゃゅょっゎゐゑゔゕゖ゙゚゛゜ゝゞゟ
+    if 0x3040 <= code_point <= 0x309F:
+        return True
+    
+    # 3. Katakana (30A0-30FF)
+    # Includes: All katakana characters, small katakana, half-width katakana, katakana punctuation
+    # Examples: アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン
+    #           ァィゥェォャュョッヮヰヱヵヶヷヸヹヺ・ーヽヾヿ
+    if 0x30A0 <= code_point <= 0x30FF:
+        return True
+    
+    # 4. CJK Unified Ideographs (4E00-9FFF) - Common Kanji
+    # Includes: The main block of CJK unified ideographs (Kanji/Hanzi)
+    # Note: This range includes Chinese characters too, but in Japanese context,
+    #       they are used as Kanji. Context determines language.
+    # Examples: 一丁七万丈三上下不且世丘丙両並中丸主久乏乗乙九乳乾乱了事二云互五井亜亡交享京人仁今介仕他付代令以仮仲件任休会
+    if 0x4E00 <= code_point <= 0x9FFF:
+        return True
+    
+    # 5. Halfwidth and Fullwidth Forms (FF00-FFEF)
+    # Includes: Full-width ASCII variants, full-width katakana, full-width punctuation
+    # Examples: 
+    #   - Full-width ASCII: ！＂＃＄％＆＇（）＊＋，－．／０１２３４５６７８９：；＜＝＞？＠ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ［＼］＾＿｀ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ｛｜｝～
+    #   - Full-width katakana: ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟ
+    if 0xFF00 <= code_point <= 0xFFEF:
+        return True
+    
+    # Additional Japanese-specific ranges (less common but worth noting):
+    
+    # 6. CJK Compatibility Ideographs (F900-FAFF) - Rare/obsolete kanji
+    # if 0xF900 <= code_point <= 0xFAFF:
+    #     return True
+    
+    # 7. CJK Unified Ideographs Extension A (3400-4DBF) - Less common kanji
+    # if 0x3400 <= code_point <= 0x4DBF:
+    #     return True
+    
+    # 8. CJK Unified Ideographs Extension B (20000-2A6DF) - Very rare kanji
+    # if 0x20000 <= code_point <= 0x2A6DF:
+    #     return True
+    
+    # 9. CJK Unified Ideographs Extension C-F (2A700-2B73F, 2B740-2B81F, 2B820-2CEAF, 2CEB0-2EBEF)
+    # if 0x2A700 <= code_point <= 0x2EBEF:
+    #     return True
+    
+    # 10. CJK Compatibility Ideographs Supplement (2F800-2FA1F)
+    # if 0x2F800 <= code_point <= 0x2FA1F:
+    #     return True
+    
+    return False
+
+
+if __name__ == "__main__":
+    print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
