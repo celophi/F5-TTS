@@ -222,6 +222,7 @@ def get_epss_timesteps(n, device, dtype):
 
 # TODO: Need to probaby specify the prefix character in config or something, 
 # or do something more robust.
+# TODO: Figure out a way to deal with symbols and numbers using the context to determine if they go through g2p or not.
 def convert_char_to_phonemes(text_list, polyphone=True):
     """
     Convert a list of text strings into OpenJTalk phoneme sequences.
@@ -277,21 +278,47 @@ def split_japanese_segments(text):
         list[dict]: List of segment dictionaries with text and language info
     
     Example:
-        >>> split_japanese_segments("Today I took the 新幹線 to Tokyo")
+        >>> split_japanese_segments("Today I took the 新幹線 to Tokyo! 100回ぐらい乗りました! Amazing!")
         [
             {"text": "Today I took the ", "is_japanese": False, "language": "en"},
             {"text": "新幹線", "is_japanese": True, "language": "ja"},
-            {"text": " to Tokyo", "is_japanese": False, "language": "en"}
+            {"text": " to Tokyo! ", "is_japanese": False, "language": "en"},
+            {"text": "100回ぐらい乗りました!", "is_japanese": True, "language": "ja"},
+            {"text": " Amazing!", "is_japanese": False, "language": "en"}
         ]
     """
     segments = []
     current_segment = ""
     current_is_japanese = None
-    
-    for char in text:
-        is_japanese = is_japanese_char(char)
-        
-        # If language boundary detected
+
+    def is_symbol_or_number(c):
+        code = ord(c)
+        # digits 0-9
+        if 48 <= code <= 57:
+            return True
+        # specific symbols: ! ? . , -
+        if code in (33, 63, 46, 44, 45):
+            return True
+        return False
+
+    # Precompute the "next real character" info
+    text_len = len(text)
+    next_real_is_japanese = [False] * text_len
+    next_japanese = None
+    for i in reversed(range(text_len)):
+        c = text[i]
+        if not is_symbol_or_number(c):
+            next_japanese = is_japanese_char(c)
+        next_real_is_japanese[i] = next_japanese if next_japanese is not None else False
+
+    # Build segments
+    for i, char in enumerate(text):
+        if is_symbol_or_number(char):
+            is_japanese = next_real_is_japanese[i]
+        else:
+            is_japanese = is_japanese_char(char)
+
+        # detect boundary
         if current_is_japanese is not None and is_japanese != current_is_japanese:
             segments.append({
                 "text": current_segment,
@@ -299,18 +326,17 @@ def split_japanese_segments(text):
                 "language": "ja" if current_is_japanese else "en"
             })
             current_segment = ""
-        
-        current_is_japanese = is_japanese
+
         current_segment += char
-    
-    # Add the final segment
+        current_is_japanese = is_japanese
+
     if current_segment:
         segments.append({
             "text": current_segment,
             "is_japanese": current_is_japanese,
             "language": "ja" if current_is_japanese else "en"
         })
-    
+
     return segments
 
 def is_japanese_char(char):
@@ -393,5 +419,6 @@ def is_japanese_char(char):
 
 
 if __name__ == "__main__":
-    print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
+    #print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
     #print(convert_char_to_pinyin(["hello this is a test", "what will I get"]))
+    print(split_japanese_segments("Today I took the 新幹線 to Tokyo! 100回ぐらい乗りました! Amazing!"))
