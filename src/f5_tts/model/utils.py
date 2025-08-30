@@ -421,4 +421,4 @@ def is_japanese_char(char):
 if __name__ == "__main__":
     #print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
     #print(convert_char_to_pinyin(["hello this is a test", "what will I get"]))
-    print(split_japanese_segments("Today I took the 新幹線 to Tokyo! 100回ぐらい乗りました! Amazing!"))
+    print(convert_char_to_phonemes(["Today I took the 新幹線 to Tokyo! 100回ぐらい乗りました! Amazing!"]))
