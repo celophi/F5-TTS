@@ -132,7 +132,8 @@ def get_tokenizer(dataset_name, tokenizer: str = "pinyin"):
         vocab_size = 256
 
     elif tokenizer == "custom":
-        with open(dataset_name, "r", encoding="utf-8") as f:
+        tokenizer_path = os.path.join(files("f5_tts").joinpath("../../data"), f"{dataset_name}/vocab.txt")
+        with open(tokenizer_path, "r", encoding="utf-8") as f:
             vocab_char_map = {}
             for i, char in enumerate(f):
                 vocab_char_map[char[:-1]] = i
@@ -421,4 +422,5 @@ def is_japanese_char(char):
 if __name__ == "__main__":
     #print(convert_char_to_phonemes(["こんにちは", "お元気ですか", "Today I took the 新幹線 to Tokyo"]))
     #print(convert_char_to_pinyin(["hello this is a test", "what will I get"]))
-    print(convert_char_to_phonemes(["100回ぐらい乗りました!"]))
+    #print(convert_char_to_phonemes(["100回ぐらい乗りました!"]))
+    print(get_tokenizer("Bilingual_EN_JP", "custom"))
