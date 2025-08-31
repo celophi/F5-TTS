@@ -20,7 +20,7 @@ import torchaudio
 from datasets.arrow_writer import ArrowWriter
 from tqdm import tqdm
 
-from f5_tts.model.utils import convert_char_to_pinyin
+from f5_tts.model.utils import convert_char_to_phonemes
 
 
 PRETRAINED_VOCAB_PATH = files("f5_tts").joinpath("../../data/Emilia_ZH_EN_pinyin/vocab.txt")
@@ -84,7 +84,7 @@ def batch_convert_texts(texts, polyphone, batch_size=BATCH_SIZE):
     converted_texts = []
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
-        converted_batch = convert_char_to_pinyin(batch, polyphone=polyphone)
+        converted_batch = convert_char_to_phonemes(batch, polyphone=polyphone)
         converted_texts.extend(converted_batch)
     return converted_texts
 
@@ -225,7 +225,7 @@ def save_prepped_dataset(out_dir, result, duration_list, text_vocab_set, is_fine
         file_vocab_finetune = PRETRAINED_VOCAB_PATH.as_posix()
         shutil.copy2(file_vocab_finetune, voca_out_path)
     else:
-        with open(voca_out_path.as_posix(), "w") as f:
+        with open(voca_out_path.as_posix(), "w", encoding="utf-8") as f:
             for vocab in sorted(text_vocab_set):
                 f.write(vocab + "\n")
 
