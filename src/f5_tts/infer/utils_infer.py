@@ -29,7 +29,7 @@ from transformers import pipeline
 from vocos import Vocos
 
 from f5_tts.model import CFM
-from f5_tts.model.utils import convert_char_to_pinyin, get_tokenizer
+from f5_tts.model.utils import convert_char_to_phonemes, get_tokenizer
 
 
 _ref_audio_cache = {}
@@ -474,7 +474,9 @@ def infer_batch_process(
 
         # Prepare the text
         text_list = [ref_text + gen_text]
-        final_text_list = convert_char_to_pinyin(text_list)
+        final_text_list = convert_char_to_phonemes(text_list)
+
+        print(final_text_list)
 
         ref_audio_len = audio.shape[-1] // hop_length
         if fix_duration is not None:

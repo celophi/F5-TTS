@@ -35,6 +35,7 @@ from f5_tts_trtllm import F5TTS
 from pypinyin import Style, lazy_pinyin
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.dlpack import from_dlpack, to_dlpack
+from f5_tts.model.utils import convert_char_to_phonemes
 
 
 def get_tokenizer(vocab_file_path: str):
@@ -234,7 +235,7 @@ class TritonPythonModel:
 
         reference_mel_len_tensor = torch.LongTensor(reference_mel_len).to(self.device)
 
-        pinyin_list = convert_char_to_pinyin(reference_target_texts_list, polyphone=True)
+        pinyin_list = convert_char_to_phonemes(reference_target_texts_list, polyphone=True)
         text_pad_sequence = list_str_to_idx(pinyin_list, self.vocab_char_map)
 
         for i, item in enumerate(text_pad_sequence):

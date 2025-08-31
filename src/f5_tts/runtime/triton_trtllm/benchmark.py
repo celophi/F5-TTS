@@ -50,6 +50,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 from vocos import Vocos
+from f5_tts.model.utils import convert_char_to_phonemes
 
 
 torch.manual_seed(0)
@@ -177,7 +178,7 @@ def data_collator(batch, vocab_char_map, device="cuda", use_perf=False):
     ref_mel_batch = padded_mel_batch(ref_mel_list, max_seq_len)
     ref_mel_len_batch = torch.LongTensor(ref_mel_len_list)
 
-    pinyin_list = convert_char_to_pinyin(reference_target_texts_list, polyphone=True)
+    pinyin_list = convert_char_to_phonemes(reference_target_texts_list, polyphone=True)
     text_pad_sequence = list_str_to_idx(pinyin_list, vocab_char_map)
 
     for i, item in enumerate(text_pad_sequence):

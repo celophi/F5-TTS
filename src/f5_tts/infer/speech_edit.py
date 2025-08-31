@@ -14,7 +14,7 @@ from omegaconf import OmegaConf
 
 from f5_tts.infer.utils_infer import load_checkpoint, load_vocoder, save_spectrogram
 from f5_tts.model import CFM
-from f5_tts.model.utils import convert_char_to_pinyin, get_tokenizer
+from f5_tts.model.utils import convert_char_to_phonemes, get_tokenizer
 
 
 device = (
@@ -163,12 +163,12 @@ edit_mask = edit_mask.to(device)
 
 # Text
 text_list = [target_text]
-if tokenizer == "pinyin":
-    final_text_list = convert_char_to_pinyin(text_list)
+if tokenizer == "custom":
+    final_text_list = convert_char_to_phonemes(text_list)
 else:
     final_text_list = [text_list]
 print(f"text  : {text_list}")
-print(f"pinyin: {final_text_list}")
+print(f"custom: {final_text_list}")
 
 # Duration
 ref_audio_len = 0

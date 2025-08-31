@@ -18,7 +18,7 @@ from pathlib import Path
 from datasets.arrow_writer import ArrowWriter
 from tqdm import tqdm
 
-from f5_tts.model.utils import convert_char_to_pinyin, repetition_found
+from f5_tts.model.utils import convert_char_to_phonemes, repetition_found
 
 
 out_zh = {
@@ -135,8 +135,8 @@ def deal_with_audio_dir(audio_dir):
                 ):
                     bad_case_en += 1
                     continue
-            if tokenizer == "pinyin":
-                text = convert_char_to_pinyin([text], polyphone=polyphone)[0]
+            if tokenizer == "custom":
+                text = convert_char_to_phonemes([text], polyphone=polyphone)[0]
             duration = obj["duration"]
             sub_result.append({"audio_path": str(audio_dir.parent / obj["wav"]), "text": text, "duration": duration})
             durations.append(duration)

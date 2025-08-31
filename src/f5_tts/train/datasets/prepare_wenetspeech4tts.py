@@ -15,7 +15,7 @@ import torchaudio
 from datasets import Dataset
 from tqdm import tqdm
 
-from f5_tts.model.utils import convert_char_to_pinyin
+from f5_tts.model.utils import convert_char_to_phonemes
 
 
 def deal_with_sub_path_files(dataset_path, sub_path):
@@ -35,8 +35,8 @@ def deal_with_sub_path_files(dataset_path, sub_path):
 
         audio_paths.append(audio_path)
 
-        if tokenizer == "pinyin":
-            texts.extend(convert_char_to_pinyin([text], polyphone=polyphone))
+        if tokenizer == "custom":
+            texts.extend(convert_char_to_phonemes([text], polyphone=polyphone))
         elif tokenizer == "char":
             texts.append(text)
 
