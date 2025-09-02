@@ -1,3 +1,13 @@
+# Fork Information
+
+This fork is intended to be a rough proof of concept for how to add a language to an existing model. The included vocab.txt keeps all the existing tokens frozen by not changing any of the positions.
+Although it may seem unconventional, to prevent token overlap, it adds a unicode character in front of new language (in this case Japanese) tokens in the vocab.txt.
+
+Thanks to the F5-TTS maintainers, the existing conversion to pinyin functionality can be repurposed to achieve adding a new language.
+
+---
+
+
 # F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching
 
 [![python](https://img.shields.io/badge/Python-3.10-brightgreen)](https://github.com/SWivid/F5-TTS)
